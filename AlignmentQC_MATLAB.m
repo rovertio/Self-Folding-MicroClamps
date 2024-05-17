@@ -33,7 +33,7 @@ img_test = snapshot(cam,'immediate');
 %Landscape (Bottom middle)
 %Crop_im=imcrop(img_test,[730,300,200,100]);
 
-%Portrait
+%Portrait (Experimental)
 Crop_im=imcrop(img_test,[300,750,200,100]);
 
 Gray = rgb2gray(Crop_im);
