@@ -18,16 +18,21 @@ cam.Flash = 'on';
 
 %% (1) Undeformed values for strips
 
-p2mm = ceil(231/(25.4));            % pixels per mm
-ltest = 55;                         % length from cantilever mount (mm)
+% Input values for pixel conversion and length tested
+pix_count = 231;                    % pixels counted per real inch
+lin = 1.226;                        % length from cantilever mount (in)
+
+% Conversion of values
+ltest = lin*25.4;                   % length from cantilever mount (mm)
+p2mm = ceil(pix_count/(25.4));      % pixels per mm
 start_off = 20;                     % Where to start going through lines
 
 % Pic of un-deflected strips
-reg = out_find(cam, ltest, p2mm);
+[Crop_reg, reg] = out_find(cam, ltest, p2mm);
 
 % Getting differences in height for the top and bottom strips
 tip_ap = (p2mm*ltest);
-tip_off = 15;
+tip_off = 25;
 
 tip = tip_search(reg, tip_ap, 'Undeformed');
 [start_y, end_y, top_d, bot_d] = y_diff(reg, start_off, (tip-tip_off));
@@ -36,11 +41,12 @@ tip = tip_search(reg, tip_ap, 'Undeformed');
 %% (2) Deformed values for strips
 
 % Pic of deflected strips
-def = out_find(cam, ltest, p2mm);
-%imshow(def)
+[Crop_def, def] = out_find(cam, ltest, p2mm);
+imshow(Crop_def)
+imshow(def)
 
 % Getting differences in height for the top and bottom strips
-%dtip = tip_search(def, tip_ap, 'Deformed');
+% dtip = tip_search(def, tip_ap, 'Deformed');
 [dstart_y, dend_y, dtop_d, dbot_d] = y_diff(def, start_off, (tip-tip_off));
 
 
@@ -54,8 +60,8 @@ N2gf = 101.972;                           % Newtons to gram-force
 def_topp = abs(dtop_d - top_d);           % Deflection of top (pixels)
 def_botp = abs(dbot_d - bot_d);           % Deflection of bottom (pixels)
 
-def_top = def_topp*(1/p2mm)*0.001;            % Deflection of top (pixels)
-def_bot = def_botp*(1/p2mm)*0.001;            % Deflection of bottom (pixels)
+def_top = def_topp*(1/p2mm)*0.001;        % Deflection of top (pixels)
+def_bot = def_botp*(1/p2mm)*0.001;        % Deflection of bottom (pixels)
 
 % Force calculations assuming cantilever connection
 P_top = N2gf*((def_top*3*E_mod*I_strip)/((L_strip)^3));
@@ -65,10 +71,10 @@ P_bot = N2gf*((def_bot*3*E_mod*I_strip)/((L_strip)^3));
 % Plotting points for verification
 figure(1);
 
-subplot(2,1,1)
+subplot(2,2,1)
 imshow(reg);
 hold on
-title('Undeformed Strips')
+title('Undeformed Strips (Processed)')
 scatter([tip,tip], end_y, 'LineWidth', 1, 'MarkerFaceColor', 'flat')
 scatter([start_off,start_off], start_y, 'LineWidth', ...
     1, 'MarkerFaceColor', 'flat')
@@ -77,10 +83,34 @@ xline(start_off, ":", "Offset start", ...
 xline(tip, ":", "Jaw Tips", "LineWidth", 1, "Color", "yellow")
 hold off
 
-subplot(2,1,2)
+subplot(2,2,2)
 imshow(def);
 hold on
-title('Clamped Strips')
+title('Clamped Strips (Processed)')
+scatter([tip,tip], dend_y, 'LineWidth', 1, 'MarkerFaceColor', 'flat')
+scatter([start_off,start_off], dstart_y, 'LineWidth', ...
+    1, 'MarkerFaceColor', 'flat')
+xline(start_off, ":", "Offset start", ...
+    "LineWidth", 1, "Color", "yellow")
+xline(tip, ":", "Jaw Tips", "LineWidth", 1, "Color", "yellow")
+hold off
+
+subplot(2,2,3)
+imshow(Crop_reg);
+hold on
+title('Undeformed Strips (Physical clamps)')
+scatter([tip,tip], end_y, 'LineWidth', 1, 'MarkerFaceColor', 'flat')
+scatter([start_off,start_off], start_y, 'LineWidth', ...
+    1, 'MarkerFaceColor', 'flat')
+xline(start_off, ":", "Offset start", ...
+    "LineWidth", 1, "Color", "yellow")
+xline(tip, ":", "Jaw Tips", "LineWidth", 1, "Color", "yellow")
+hold off
+
+subplot(2,2,4)
+imshow(Crop_def);
+hold on
+title('Clamped Strips (Physical clamps)')
 scatter([tip,tip], dend_y, 'LineWidth', 1, 'MarkerFaceColor', 'flat')
 scatter([start_off,start_off], dstart_y, 'LineWidth', ...
     1, 'MarkerFaceColor', 'flat')
@@ -88,9 +118,9 @@ xline(start_off, ":", "Offset start", ...
     "LineWidth", 1, "Color", "yellow")
 xline(tip, ":", "Jaw Tips", "LineWidth", 1, "Color", "yellow")
 text(tip - 250, max(dend_y) + 20, "Bottom Clamp Force (gf): " + P_bot, ...
-    "Color", "g", "FontSize", 14, "FontWeight", 'bold');
+    "Color", "b", "FontSize", 14, "FontWeight", 'bold');
 text(tip - 250, min(dend_y) - 20, "Top Clamp Force (gf): " + P_top, ...
-    "Color", "g", "FontSize", 14, "FontWeight", 'bold');
+    "Color", "b", "FontSize", 14, "FontWeight", 'bold');
 hold off
 
 
@@ -111,11 +141,12 @@ function [tip] = tip_search(Gray2, tip_ap, state)
 
     t_pt = 0;
     prevt_pt = 0;
+    lim = 0.8*size(Gray2,2);
 
     % Searches through columns to obtain points of the tip
     for ii = start_scan:-1:1
 
-        if ii <= (tip_ap - 250)
+        if ii <= (tip_ap - lim)
             print("Tip not found. Redo image capture")
             tip = size(Gray2,2);
             break;
@@ -171,8 +202,8 @@ function [start_y, end_y, top_d, bot_d] = y_diff(Gray2, start_off, tip)
     end_y(1) = min(end_yf(end_yf~=0));
     end_y(2) = max(end_yf(end_yf~=0));
     
-    % start_y
-    % end_y
+    start_yf(start_yf~=0)
+    end_yf(end_yf~=0)
     
     % Calcalates the difference in y heights of the strips
     top_d = abs(end_y(1) - start_y(1));
@@ -183,7 +214,7 @@ end
 
 %% Function: Aquiring snapshot
 
-function Gray2 = out_find(cam, ltest, p2mm)
+function [Crop_im, Gray2] = out_find(cam, ltest, p2mm)
 
     img_test = snapshot(cam,'immediate');
     
@@ -195,28 +226,27 @@ function Gray2 = out_find(cam, ltest, p2mm)
     x_off = 20;
     x_s = 490;
     x_f = (ltest*p2mm) + x_off;
-    
     Crop_im=imcrop(Crop_im,[x_s,100,x_f,200]);
-    % image(Crop_im);
-    % daspect([1,1,1])
-    
-    Gray = rgb2gray(Crop_im);
-    Gray=wiener2(Gray,[5,5],20);
+
+    % Processing with wienner (not as effective)
+    % Gray = rgb2gray(Crop_im);
+    % Gray=wiener2(Gray,[5,5],20);
+
+    % Processing through HSV format: eliminates shadow effects
+    hsv_thresh = 0.24;
+    Im_hsv = rgb2hsv(Crop_im);
+    Sat_im = Im_hsv(:,:,2);
+    Gray = Sat_im > hsv_thresh;
+
     
     % Feature Detection
     edge_d='Canny';
-    min_th=0.1;
+    min_th=0.15;
     max_th=0.35;
     
     thre=[min_th max_th];
     Gray2=edge(Gray,edge_d,thre);
-    
-    % figure(1);
-    % hold on
-    % imshow(Gray2)
-    % %imshowpair(Gray2,Gray,'montage')
-    % hold off
-    % truesize(1, [500,500]);
+
 
 end
 
