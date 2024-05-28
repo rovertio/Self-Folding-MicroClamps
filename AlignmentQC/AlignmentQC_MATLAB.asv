@@ -33,9 +33,9 @@ image(img_test)
 Ali_thresh = 0.2;
 
 %Vertical (Experimental)
-% Crop_im=imcrop(img_test,[410,290,120,400]);
-% Crop_im = imrotate(Crop_im,270);
-%imshow(Crop_im)
+Crop_im=imcrop(img_test,[410,290,120,400]);
+Crop_im = imrotate(Crop_im,270);
+imshow(Crop_im)
 
 %% Horizontal (Experimental)
 Crop_im=imcrop(img_test,[300,500,250,120]);
@@ -67,20 +67,20 @@ imshow(Gray2)
 
 % Feature Detection (hsv)
 
-% hsv_thresh = 0.05;
-% Im_hsv = rgb2hsv(Crop_im);
-% Sat_im = Im_hsv(:,:,2);
-% Gray = Sat_im > hsv_thresh;
-% 
-% 
-% % Feature Detection
-% edge_d='Canny';
-% min_th=0.15;
-% max_th=0.35;
-% 
-% thre=[min_th max_th];
-% Gray2=edge(Gray,edge_d,thre);
-% imshow(Gray2);
+hsv_thresh = 0.05;
+Im_hsv = rgb2hsv(Crop_im);
+Sat_im = Im_hsv(:,:,2);
+Gray = Sat_im > hsv_thresh;
+
+    
+% Feature Detection
+edge_d='Canny';
+min_th=0.15;
+max_th=0.35;
+    
+thre=[min_th max_th];
+Gray2=edge(Gray,edge_d,thre);
+imshow(Gray2);
 
 
 %% Tip finding
@@ -282,4 +282,17 @@ hold off
 truesize(3, [300,200]);
 
 
+%%
+
+p = [0.25, 0.25, 0, 0;
+    0.75, 0.25, 0, 1;
+    0, 0.5, 0.5, 0;
+    0, 0, 0.5, 0];
+
+x0 = [0.5;
+    0;
+    0.5;
+    0];
+
+p*eye(4)*p*x0
 

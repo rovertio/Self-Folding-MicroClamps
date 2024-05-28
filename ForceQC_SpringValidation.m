@@ -20,19 +20,21 @@ cam.Flash = 'on';
 
 % Input values for pixel conversion and length tested
 pix_count = 231;                    % pixels counted per real inch
-lin = 1.226;                        % length from cantilever mount (in)
+lin = 2.2;                        % length from cantilever mount (in)
 
 % Conversion of values
 ltest = lin*25.4;                   % length from cantilever mount (mm)
 p2mm = ceil(pix_count/(25.4));      % pixels per mm
-start_off = 20;                     % Where to start going through lines
+start_off = 50;                     % Where to start going through lines
 
 % Pic of un-deflected strips
 [Crop_reg, reg] = out_find(cam, ltest, p2mm);
+imshow(reg)
 
 % Getting differences in height for the top and bottom strips
 tip_ap = (p2mm*ltest);
 tip_off = 25;
+
 
 tip = tip_search(reg, tip_ap, 'Undeformed');
 [start_y, end_y, top_d, bot_d] = y_diff(reg, start_off, (tip-tip_off));
@@ -196,6 +198,9 @@ function [start_y, end_y, top_d, bot_d] = y_diff(Gray2, start_off, tip)
         end    
     end 
 
+    start_yf(start_yf~=0)
+    end_yf(end_yf~=0)
+
     % Gets the outermost y coordinates of the two strips
     start_y(1) = min(start_yf(start_yf~=0));
     start_y(2) = max(start_yf(start_yf~=0));
@@ -224,7 +229,7 @@ function [Crop_im, Gray2] = out_find(cam, ltest, p2mm)
     
     % Crop locations
     x_off = 20;
-    x_s = 490;
+    x_s = 580;
     x_f = (ltest*p2mm) + x_off;
     Crop_im=imcrop(Crop_im,[x_s,100,x_f,200]);
 
