@@ -221,7 +221,7 @@ def angle_cal(c1_pts, c2_pts):
 # --------------------------------------------
 
 
-# Separation computations
+# Separation computations (arc length)
 # --------------------------------------------
 def arc_len(ali_thresh, theta):
     # Constants for calculations
@@ -230,48 +230,29 @@ def arc_len(ali_thresh, theta):
 
     # Calculations for arc length
     tip_sep = np.zeros((2,np.size(theta)))
+
+    # Theta values go from clamp 1 ->
     for ii in range(np.size(theta)):
         sep = jaw_len*theta[ii]
         
         # Flag when exceed threshold
-        if sep >= jaw_width*ali_thresh:
-            tip_sep[1][ii] = 1
+        if sep > jaw_width*ali_thresh:
+            tip_sep[1,ii] = 1
         else:
-            tip_sep[1][ii] = 0
+            tip_sep[1,ii] = 0
         
-        tip_sep[0][ii]
+        tip_sep[0,ii] = sep
+
+    return tip_sep
 
 
-if __name__ == '__main__':
+# Overlaying calculated edges with plot
+def fig_plot(crop_img, c1_pts, c2_pts, start_y, end_y, tip_sep):
 
-    # Constants for analysis
-    clamp_num = 2           # Number of clamps (2)
-    res = 10                # Resolution (pix/mm)
-
-    # Getting images from Camo and computer
-    #imageCapture(get_available_cameras())
-    image = "opencv_frame1.png"
-
-    # Processing image to find edges
-    crop_img, edges = canny_detection(image)
-
-    # Finding points of edges
-    tip = tip_find(edges, clamp_num, res)
-    start_y, end_y, c1_pts, c2_pts = line_pts(edges, tip)
-    # print(tip)
-    # print("clamp one point matrix")
-    # print(c1_pts)
-    # print("clamp two point matrix")
-    # print(c2_pts)
-
-    # Finding angle measruements of the edges
-    theta = angle_cal(c1_pts, c2_pts)
-
-
-    # Separation esimated via arc length
-
-
-    # Overlaying calculated edges with plot
+    # Gives the font styles for quality control
+    flag_dict = {1: ['red', 'bold'],
+                 0: ['green', 'bold']}
+    
     fig, ax = plt.subplots()
     crop_img = ax.imshow(crop_img)
     ax.set_title("Edges and angle values for clamps")
@@ -293,11 +274,53 @@ if __name__ == '__main__':
               color='black', linestyle='dotted', label="Offset tip")
     
     # Annotations with angle values
-    ax.text(50, 100, "Clamp force (gf): " + str(np.around(P_total, decimals=1)), color='g', fontsize=12)
-    ax.text(50, 100, "Clamp force (gf): " + str(np.around(P_total, decimals=1)), color='g', fontsize=12)
+    x_ann = [min(c1_pts[0]), min(c2_pts[0])]
+    for kk in range(np.size(tip_sep, 1)):
+        ax.text(x_ann[kk], 35, "Jaw separation (mm): " + str(np.around(tip_sep[0][kk], decimals=3)),
+                color=flag_dict[tip_sep[1][kk]][0], fontsize = 17,
+                fontweight=flag_dict[tip_sep[1][kk]][1])
 
     plt.show()
 
+
+# --------------------------------------------
+
+
+if __name__ == '__main__':
+
+    # Constants for analysis
+    clamp_num = 2           # Number of clamps (2)
+    res = 10                # Resolution (pix/mm)
+    ali_thresh = 0.5        # Threshold separation (percent of tip width)
+
+
+    # Getting images from Camo and computer
+    image = "opencv_frame1.png"
+
+    # Processing image to find edges
+    crop_img, edges = canny_detection(image)
+
+    # Finding points of edges
+    tip = tip_find(edges, clamp_num, res)
+    start_y, end_y, c1_pts, c2_pts = line_pts(edges, tip)
+    # print(tip)
+    # print("clamp one point matrix")
+    # print(c1_pts)
+    # print("clamp two point matrix")
+    # print(c2_pts)
+
+    # Finding angle measruements of the edges
+    theta = angle_cal(c1_pts, c2_pts)
+    # print(theta)
+
+    # Separation esimated via arc length
+    tip_sep = arc_len(ali_thresh, theta)
+    # print(tip_sep)
+
+    # Plotting results
+    fig_plot(crop_img, c1_pts, c2_pts, start_y, end_y, tip_sep)
+
+    # Edge detection window for debugging
     # cv.imshow("Edge Detection", edges)
     # cv.waitKey(0) 
     # cv.destroyAllWindows() 
