@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # Team 15: Micro Clamps 
 # Implementation in python + CV + Camo
 
@@ -9,7 +10,7 @@ from matplotlib import pyplot as plt
 
 # Image accessing module
 # --------------------------------------------
-# Camera test
+# Camera test (Use landscape for phone camera orientation)
 def get_available_cameras():
     available_cameras = []
     # check for 5 cameras
@@ -89,7 +90,7 @@ def tip_find(edges, clamp_number, res):
     t_pt_th = clamp_number*2
     # fudge factor for tip detection
     # depends on the resolution for the image capture (pix/mm)
-    tip_f = np.ceil(1.75*res)
+    tip_f = np.ceil(1.75*0.5*res) + np.ceil(scan_rows*0.02)
 
     # Go down through rows of image
     for ii in range(scan_rows):
@@ -223,17 +224,18 @@ def angle_cal(c1_pts, c2_pts):
 
 # Separation computations (arc length)
 # --------------------------------------------
-def arc_len(ali_thresh, theta):
-    # Constants for calculations
-    jaw_len = 13        # legnth of clamp jaw (mm)
-    jaw_width = 1.75    # width of jaw (mm)
-
+def arc_len(ali_thresh, jaw_len, jaw_width, theta):
     # Calculations for arc length
+    b_width = 3.4
     tip_sep = np.zeros((2,np.size(theta)))
 
     # Theta values go from clamp 1 ->
     for ii in range(np.size(theta)):
-        sep = jaw_len*theta[ii]
+        # Conpensate for off center lines
+        l_comp = ((b_width*np.tan(theta[ii]/2)/2)
+                  -(((b_width/2)/np.cos(theta[ii]/2))-(b_width/2))*np.tan((np.pi-theta[ii])/2)) * np.cos(theta[ii]/2)
+        sep = (jaw_len + l_comp)*theta[ii]
+        # sep = jaw_len*theta[ii]
         
         # Flag when exceed threshold
         if sep > jaw_width*ali_thresh:
@@ -245,9 +247,29 @@ def arc_len(ali_thresh, theta):
 
     return tip_sep
 
+# Alternative direct computation
+def sub_len(res, ali_thresh, jaw_len, jaw_width, c1_pts, c2_pts):
+    tip_sep = np.zeros((2,2))
+    c1_dis = (max(c1_pts[1]) - min(c1_pts[1])) / res
+    c2_dis = (max(c2_pts[1]) - min(c2_pts[1])) / res
+
+    tip_sep[0,0] = c1_dis - jaw_width
+    tip_sep[0,1] = c2_dis - jaw_width
+
+    for ii in range(2):
+        sep = tip_sep[0,ii]
+        
+        # Flag when exceed threshold
+        if sep > jaw_width*ali_thresh:
+            tip_sep[1,ii] = 1
+        else:
+            tip_sep[1,ii] = 0
+
+    return tip_sep
+
 
 # Overlaying calculated edges with plot
-def fig_plot(crop_img, c1_pts, c2_pts, start_y, end_y, tip_sep):
+def fig_plot(crop_img, c1_pts, c2_pts, start_y, end_y, ali_thresh, jaw_width, tip_sep):
 
     # Gives the font styles for quality control
     flag_dict = {1: ['red', 'bold'],
@@ -273,7 +295,9 @@ def fig_plot(crop_img, c1_pts, c2_pts, start_y, end_y, tip_sep):
     ax.hlines(end_y, max(c1_pts[1]), np.size(crop_img),  linewidths=3, 
               color='black', linestyle='dotted', label="Offset tip")
     
-    # Annotations with angle values
+    # Annotations with separation values
+    ax.text(10, 10, "Threshold jaw separation (mm): " + str(ali_thresh*jaw_width),
+                color='black', fontsize = 12)
     x_ann = [min(c1_pts[0]), min(c2_pts[0])]
     for kk in range(np.size(tip_sep, 1)):
         ax.text(x_ann[kk], 35, "Jaw separation (mm): " + str(np.around(tip_sep[0][kk], decimals=3)),
@@ -282,19 +306,22 @@ def fig_plot(crop_img, c1_pts, c2_pts, start_y, end_y, tip_sep):
 
     plt.show()
 
-
 # --------------------------------------------
+
 
 
 if __name__ == '__main__':
 
     # Constants for analysis
+    jaw_len = 13            # legnth of clamp jaw (mm)
+    jaw_width = 1.75        # width of jaw (mm)
     clamp_num = 2           # Number of clamps (2)
     res = 10                # Resolution (pix/mm)
     ali_thresh = 0.5        # Threshold separation (percent of tip width)
 
 
     # Getting images from Camo and computer
+    # imageCapture(get_available_cameras)
     image = "opencv_frame1.png"
 
     # Processing image to find edges
@@ -305,20 +332,21 @@ if __name__ == '__main__':
     start_y, end_y, c1_pts, c2_pts = line_pts(edges, tip)
     # print(tip)
     # print("clamp one point matrix")
-    # print(c1_pts)
+    print(c1_pts[1])
     # print("clamp two point matrix")
-    # print(c2_pts)
+    print(c2_pts[1])
 
     # Finding angle measruements of the edges
     theta = angle_cal(c1_pts, c2_pts)
     # print(theta)
 
     # Separation esimated via arc length
-    tip_sep = arc_len(ali_thresh, theta)
-    # print(tip_sep)
+    tip_sep = arc_len(ali_thresh, jaw_len, jaw_width, theta)
+    # tip_sep = sub_len(res, ali_thresh, jaw_len, jaw_width, c1_pts, c2_pts)
+    print(tip_sep)
 
     # Plotting results
-    fig_plot(crop_img, c1_pts, c2_pts, start_y, end_y, tip_sep)
+    fig_plot(crop_img, c1_pts, c2_pts, start_y, end_y, ali_thresh, jaw_width, tip_sep)
 
     # Edge detection window for debugging
     # cv.imshow("Edge Detection", edges)
