@@ -63,11 +63,11 @@ def imageCapture(available_cameras, im_name):
 # Image processing module
 # --------------------------------------------
 # Canny feature detection + Image editing
-def canny_detection(image, lb_can, ub_can):
+def canny_detection(image, lb_can, ub_can, rows, cols):
     img = cv.imread(image, cv.IMREAD_COLOR)
     assert img is not None, "file could not be read, check with os.path.exists"
 
-    crop_img=img[350:550, 730:860]
+    crop_img=img[rows[0]:rows[1], cols[0]:cols[1]]
     crop_img=cv.rotate(crop_img,cv.ROTATE_90_COUNTERCLOCKWISE)
 
     #edges = cv.Canny(crop_img,160,300)
@@ -226,6 +226,7 @@ def angle_cal(ali_thresh, jaw_width, res, c1_pts, c2_pts):
     # If the clamp edges are parallel, report zero angle
     if len(theta1) == 0:
         theta1 = 0
+        # If there is a large separation despite zero angle, obtain the parallel distance
         if ((max(c1_pts[1]) - min(c1_pts[1])) / res) > jaw_width + 0.1 and ((max(c1_pts[0]) - min(c1_pts[0])) / res) > jaw_width + 0.1:
             off1 = ((max(c1_pts[1]) - min(c1_pts[1])) / res) - jaw_width
         else:
@@ -236,6 +237,7 @@ def angle_cal(ali_thresh, jaw_width, res, c1_pts, c2_pts):
 
     if len(theta2) == 0:
         theta2 = 0
+        # If there is a large separation despite zero angle, obtain the parallel distance
         if ((max(c2_pts[1]) - min(c2_pts[1])) / res) > jaw_width + 0.1 and ((max(c2_pts[0]) - min(c2_pts[0])) / res) > jaw_width + 0.1:
             off2 = ((max(c2_pts[1]) - min(c2_pts[1])) / res) - jaw_width
         else:
@@ -342,8 +344,6 @@ def fig_plot(crop_img, c1_pts, c2_pts, start_y, end_y, ali_thresh, jaw_width, ti
     plt.savefig("alignmentPlot_pic_no" + str(im_name)  + ".png")
     plt.show()
 
-    
-
 # --------------------------------------------
 
 
@@ -360,15 +360,20 @@ if __name__ == '__main__':
     # Image processing parameter adjustment (canny edge detection)
     lb_can = 160
     ub_can = 350
+    # Image processing parameter adjustment (cropping)
+    rows = [350, 550]
+    cols = [730, 860]
+
+    # --------------------------------------------
 
     # Input the test number of the clamp to differentiate the phots/analysis
-    test_num = input("Enter number of clamp tested this iteration")
+    test_num = input("Enter the test number for this iteration: ")
 
     # Getting images from Camo and computer
     img_name = imageCapture(get_available_cameras, str(test_num))
 
     # Processing image to find edges
-    crop_img, edges = canny_detection(img_name, lb_can, ub_can)
+    crop_img, edges = canny_detection(img_name, lb_can, ub_can, rows, cols)
 
     # Edge detection window for debugging
     cv.imshow("Edge Detection", edges)
@@ -395,6 +400,6 @@ if __name__ == '__main__':
     # print(tip_sep)
 
     # Plotting results
-    fig_plot(crop_img, c1_pts, c2_pts, start_y, end_y, ali_thresh, jaw_width, tip_sep, im_name)
+    fig_plot(crop_img, c1_pts, c2_pts, start_y, end_y, ali_thresh, jaw_width, tip_sep, test_num)
 
     
