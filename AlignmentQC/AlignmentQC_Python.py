@@ -21,7 +21,7 @@ def get_available_cameras():
             cap.release()
     return available_cameras
 
-def imageCapture(available_cameras):
+def imageCapture(available_cameras, im_name):
     cameras = available_cameras
     if cameras:
         print("Available cameras: ", cameras)
@@ -47,13 +47,15 @@ def imageCapture(available_cameras):
             break
         elif k%256 == 32:
             # Space pressed
-            img_name = "opencv_frame{}.png".format(img_counter)
+            # img_name = "opencv_frame{}.png".format(img_counter)
+            img_name = "alignmentTest_pic_no" + str(im_name)  + ".png"
             cv.imwrite(img_name, frame)
             print("{} written!".format(img_name))
             img_counter += 1
 
     cap.release()
     cv.destroyAllWindows()
+    return img_name
 
 # --------------------------------------------
 
@@ -61,14 +63,15 @@ def imageCapture(available_cameras):
 # Image processing module
 # --------------------------------------------
 # Canny feature detection + Image editing
-def canny_detection(image):
+def canny_detection(image, lb_can, ub_can):
     img = cv.imread(image, cv.IMREAD_COLOR)
     assert img is not None, "file could not be read, check with os.path.exists"
 
-    crop_img=img[350:550, 670:800]
+    crop_img=img[350:550, 730:860]
     crop_img=cv.rotate(crop_img,cv.ROTATE_90_COUNTERCLOCKWISE)
 
-    edges = cv.Canny(crop_img,50,150)
+    #edges = cv.Canny(crop_img,160,300)
+    edges = cv.Canny(crop_img,lb_can,ub_can)
     
     # cv.imshow("Edge Detection", edges)
     # cv.waitKey(0)
@@ -127,7 +130,7 @@ def tip_find(edges, clamp_number, res):
 def line_pts(edges, tip):
     # start (1) -> base of clamp, end (2) -> tip of clamp jaw
     # y values for each point/edge deteced
-    start_y = np.int_(np.ceil(0.8*np.size(edges,0)))
+    start_y = np.int_(np.ceil(0.75*np.size(edges,0)))
     end_y = np.int_(tip)
 
     # number of rows and columns
@@ -138,7 +141,7 @@ def line_pts(edges, tip):
     jaw_x2 = np.zeros(scan_col)
     prev_x1 = 1
     prev_x2 = 1
-    point_tol = 2
+    point_tol = 3
 
     # Finding the start and end points
     for ii in range(scan_col):
@@ -162,7 +165,7 @@ def line_pts(edges, tip):
 
     # Clamp x values at the base of the clamps
     clamp1_x1 = np.array(jaw_x1[(jaw_x1 - min(jaw_x1)) > 0.15*scan_col])
-    clamp2_x1 = np.array(jaw_x1[(jaw_x1 - min(jaw_x1)) <= 0.15*scan_col])
+    clamp2_x1 = np.array(jaw_x1[(jaw_x1 - min(jaw_x1)) <= 0.13*scan_col])
 
     # Clamp x values at the tips of the clamps
     clamp1_x2 = np.array(jaw_x2[(jaw_x2 - min(jaw_x2)) > 0.15*scan_col])
@@ -190,7 +193,7 @@ def line_pts(edges, tip):
     return start_y, end_y, c1_pts, c2_pts
 
 # Angle calculations between lines 
-def angle_cal(c1_pts, c2_pts):
+def angle_cal(ali_thresh, jaw_width, res, c1_pts, c2_pts):
     theta1 = np.zeros(2)
     theta2 = np.zeros(2)
     pt_num1 = np.size(c1_pts[0])
@@ -213,18 +216,42 @@ def angle_cal(c1_pts, c2_pts):
         # Obtianing vector for angle calculations   
         v_check2 = [c2_pts[1,jj+1] - c2_pts[0,jj+1], c2_pts[3,jj+1] - c2_pts[2,jj+1]]
         theta2[jj] = np.arccos(np.dot(v_ref2, v_check2)/(np.linalg.norm(v_ref2)*np.linalg.norm(v_check2)))
+    
+    # Filtering out values practically zero
+    theta1 = np.around(theta1, decimals=5)
+    theta2 = np.around(theta2, decimals=5)
+    theta1 = theta1[theta1 != 0]
+    theta2 = theta2[theta2 != 0]
 
-    theta1 = max(theta1[theta1 != 0])
-    theta2 = max(theta2[theta2 != 0])
+    # If the clamp edges are parallel, report zero angle
+    if len(theta1) == 0:
+        theta1 = 0
+        if ((max(c1_pts[1]) - min(c1_pts[1])) / res) > jaw_width + 0.1 and ((max(c1_pts[0]) - min(c1_pts[0])) / res) > jaw_width + 0.1:
+            off1 = ((max(c1_pts[1]) - min(c1_pts[1])) / res) - jaw_width
+        else:
+            off1 = 0
+    else:
+        theta1 = max(theta1)
+        off1 = 0
 
-    return [theta1, theta2]
+    if len(theta2) == 0:
+        theta2 = 0
+        if ((max(c2_pts[1]) - min(c2_pts[1])) / res) > jaw_width + 0.1 and ((max(c2_pts[0]) - min(c2_pts[0])) / res) > jaw_width + 0.1:
+            off2 = ((max(c2_pts[1]) - min(c2_pts[1])) / res) - jaw_width
+        else:
+            off2 = 0
+    else:
+        theta2 = max(theta2)
+        off2 = 0
+
+    return [theta1, theta2], [off1, off2]
 
 # --------------------------------------------
 
 
 # Separation computations (arc length)
 # --------------------------------------------
-def arc_len(ali_thresh, jaw_len, jaw_width, theta):
+def arc_len(ali_thresh, jaw_len, jaw_width, theta, off):
     # Calculations for arc length
     b_width = 3.4
     tip_sep = np.zeros((2,np.size(theta)))
@@ -234,7 +261,7 @@ def arc_len(ali_thresh, jaw_len, jaw_width, theta):
         # Conpensate for off center lines
         l_comp = ((b_width*np.tan(theta[ii]/2)/2)
                   -(((b_width/2)/np.cos(theta[ii]/2))-(b_width/2))*np.tan((np.pi-theta[ii])/2)) * np.cos(theta[ii]/2)
-        sep = (jaw_len + l_comp)*theta[ii]
+        sep = (jaw_len + l_comp)*theta[ii] + off[ii]
         # sep = jaw_len*theta[ii]
         
         # Flag when exceed threshold
@@ -269,7 +296,7 @@ def sub_len(res, ali_thresh, jaw_len, jaw_width, c1_pts, c2_pts):
 
 
 # Overlaying calculated edges with plot
-def fig_plot(crop_img, c1_pts, c2_pts, start_y, end_y, ali_thresh, jaw_width, tip_sep):
+def fig_plot(crop_img, c1_pts, c2_pts, start_y, end_y, ali_thresh, jaw_width, tip_sep, im_name):
 
     # Gives the font styles for quality control
     flag_dict = {1: ['red', 'bold'],
@@ -277,7 +304,7 @@ def fig_plot(crop_img, c1_pts, c2_pts, start_y, end_y, ali_thresh, jaw_width, ti
     
     fig, ax = plt.subplots()
     crop_img = ax.imshow(crop_img)
-    ax.set_title("Edges and angle values for clamps")
+    ax.set_title("Edges and angle values for clamps: Test no. " + str(im_name))
 
     # Plotting clamp one lines
     for ii in range(np.size(c1_pts[0])):
@@ -298,13 +325,24 @@ def fig_plot(crop_img, c1_pts, c2_pts, start_y, end_y, ali_thresh, jaw_width, ti
     # Annotations with separation values
     ax.text(10, 10, "Threshold jaw separation (mm): " + str(ali_thresh*jaw_width),
                 color='black', fontsize = 12)
-    x_ann = [min(c1_pts[0]), min(c2_pts[0])]
+    x_ann = [min(c1_pts[0]), min(c2_pts[0])] - min(c2_pts[0]) + 20
     for kk in range(np.size(tip_sep, 1)):
-        ax.text(x_ann[kk], 35, "Jaw separation (mm): " + str(np.around(tip_sep[0][kk], decimals=3)),
-                color=flag_dict[tip_sep[1][kk]][0], fontsize = 17,
+        ax.text(x_ann[kk], 25, "Dist. (mm): " + str(np.around(tip_sep[0][kk], decimals=3)),
+                color=flag_dict[tip_sep[1][kk]][0], fontsize = 12,
                 fontweight=flag_dict[tip_sep[1][kk]][1])
+    
+    if [(max(c1_pts[1]) - min(c1_pts[1])) / res] < [jaw_width + 0.2]:
+        ax.text(x_ann[0], 17, "Edges line up",
+                color='black', fontsize = 10)
 
+    if [(max(c2_pts[1]) - min(c2_pts[1])) / res] < [jaw_width + 0.2]:
+        ax.text(x_ann[1], 17, "Edges line up",
+                color='black', fontsize = 10)   
+        
+    plt.savefig("alignmentPlot_pic_no" + str(im_name)  + ".png")
     plt.show()
+
+    
 
 # --------------------------------------------
 
@@ -314,41 +352,49 @@ if __name__ == '__main__':
 
     # Constants for analysis
     jaw_len = 13            # legnth of clamp jaw (mm)
-    jaw_width = 1.75        # width of jaw (mm)
-    clamp_num = 2           # Number of clamps (2)
+    jaw_width = 1.67        # width of jaw (mm)
+    clamp_num = 2           # Number of clamps (2, possibly more in future updates)
     res = 10                # Resolution (pix/mm)
     ali_thresh = 0.5        # Threshold separation (percent of tip width)
 
+    # Image processing parameter adjustment (canny edge detection)
+    lb_can = 160
+    ub_can = 350
+
+    # Input the test number of the clamp to differentiate the phots/analysis
+    test_num = input("Enter number of clamp tested this iteration")
 
     # Getting images from Camo and computer
-    # imageCapture(get_available_cameras)
-    image = "opencv_frame1.png"
+    img_name = imageCapture(get_available_cameras, str(test_num))
 
     # Processing image to find edges
-    crop_img, edges = canny_detection(image)
+    crop_img, edges = canny_detection(img_name, lb_can, ub_can)
+
+    # Edge detection window for debugging
+    cv.imshow("Edge Detection", edges)
+    cv.waitKey(0) 
+    cv.destroyAllWindows() 
 
     # Finding points of edges
     tip = tip_find(edges, clamp_num, res)
     start_y, end_y, c1_pts, c2_pts = line_pts(edges, tip)
     # print(tip)
-    # print("clamp one point matrix")
-    print(c1_pts[1])
-    # print("clamp two point matrix")
-    print(c2_pts[1])
+    print("clamp one point matrix")
+    print(c1_pts)
+    print("clamp two point matrix")
+    print(c2_pts)
 
     # Finding angle measruements of the edges
-    theta = angle_cal(c1_pts, c2_pts)
-    # print(theta)
+    theta, off = angle_cal(ali_thresh, jaw_width, res, c1_pts, c2_pts)
+    print(theta)
+    print(off)
 
     # Separation esimated via arc length
-    tip_sep = arc_len(ali_thresh, jaw_len, jaw_width, theta)
+    tip_sep = arc_len(ali_thresh, jaw_len, jaw_width, theta, off)
     # tip_sep = sub_len(res, ali_thresh, jaw_len, jaw_width, c1_pts, c2_pts)
-    print(tip_sep)
+    # print(tip_sep)
 
     # Plotting results
-    fig_plot(crop_img, c1_pts, c2_pts, start_y, end_y, ali_thresh, jaw_width, tip_sep)
+    fig_plot(crop_img, c1_pts, c2_pts, start_y, end_y, ali_thresh, jaw_width, tip_sep, im_name)
 
-    # Edge detection window for debugging
-    # cv.imshow("Edge Detection", edges)
-    # cv.waitKey(0) 
-    # cv.destroyAllWindows() 
+    
