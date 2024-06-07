@@ -1,10 +1,11 @@
 %% Alignment QC Error Analysis
 
 off_dis = 5;            % Length apart for edge identification
-p2mm = 10;
-th_an = 0.875/13;
+p2mm = 10;              % Approximate resolution
+th_an = 0.875/13;       % Threshold angle
+pix_num = 2;            % Pixel number in error
 
-Err_an = @(t) atan(((off_dis*tan(t)) + (2/p2mm))/off_dis) - t;
+Err_an = @(t) atan(((off_dis*tan(t)) + (pix_num/p2mm))/off_dis) - t;
 an_range = linspace(0,0.1);
 
 figure(1)
