@@ -48,7 +48,7 @@ def imageCapture(available_cameras, im_name):
         elif k%256 == 32:
             # Space pressed
             # img_name = "opencv_frame{}.png".format(img_counter)
-            img_name = "alignmentTest_pic_no" + str(im_name)  + ".png"
+            img_name = "alignmentTest_pic_no" + str(im_name) + ".png"
             cv.imwrite(img_name, frame)
             print("{} written!".format(img_name))
             img_counter += 1
@@ -366,40 +366,43 @@ if __name__ == '__main__':
 
     # --------------------------------------------
 
-    # Input the test number of the clamp to differentiate the phots/analysis
-    test_num = input("Enter the test number for this iteration: ")
+    try:
+        while True:
+            # Input the test number of the clamp to differentiate the phots/analysis
+            test_num = input("Enter the test number for this iteration: ")
 
-    # Getting images from Camo and computer
-    img_name = imageCapture(get_available_cameras, str(test_num))
+            # Getting images from Camo and computer
+            img_name = imageCapture(get_available_cameras, str(test_num))
 
-    # Processing image to find edges
-    crop_img, edges = canny_detection(img_name, lb_can, ub_can, rows, cols)
+            # Processing image to find edges
+            crop_img, edges = canny_detection(img_name, lb_can, ub_can, rows, cols)
 
-    # Edge detection window for debugging
-    cv.imshow("Edge Detection", edges)
-    cv.waitKey(0) 
-    cv.destroyAllWindows() 
+            # Edge detection window for debugging
+            cv.imshow("Edge Detection", edges)
+            cv.waitKey(0) 
+            cv.destroyAllWindows() 
 
-    # Finding points of edges
-    tip = tip_find(edges, clamp_num, res)
-    start_y, end_y, c1_pts, c2_pts = line_pts(edges, tip)
-    # print(tip)
-    print("clamp one point matrix")
-    print(c1_pts)
-    print("clamp two point matrix")
-    print(c2_pts)
+            # Finding points of edges
+            tip = tip_find(edges, clamp_num, res)
+            start_y, end_y, c1_pts, c2_pts = line_pts(edges, tip)
+            # print(tip)
+            print("clamp one point matrix")
+            print(c1_pts)
+            print("clamp two point matrix")
+            print(c2_pts)
 
-    # Finding angle measruements of the edges
-    theta, off = angle_cal(ali_thresh, jaw_width, res, c1_pts, c2_pts)
-    print(theta)
-    print(off)
+            # Finding angle measruements of the edges
+            theta, off = angle_cal(ali_thresh, jaw_width, res, c1_pts, c2_pts)
+            print(theta)
+            print(off)
 
-    # Separation esimated via arc length
-    tip_sep = arc_len(ali_thresh, jaw_len, jaw_width, theta, off)
-    # tip_sep = sub_len(res, ali_thresh, jaw_len, jaw_width, c1_pts, c2_pts)
-    # print(tip_sep)
+            # Separation esimated via arc length
+            tip_sep = arc_len(ali_thresh, jaw_len, jaw_width, theta, off)
+            # tip_sep = sub_len(res, ali_thresh, jaw_len, jaw_width, c1_pts, c2_pts)
+            # print(tip_sep)
 
-    # Plotting results
-    fig_plot(crop_img, c1_pts, c2_pts, start_y, end_y, ali_thresh, jaw_width, tip_sep, test_num)
+            # Plotting results
+            fig_plot(crop_img, c1_pts, c2_pts, start_y, end_y, ali_thresh, jaw_width, tip_sep, test_num)
 
-    
+    except KeyboardInterrupt:
+        pass
